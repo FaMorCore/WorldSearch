@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WorldSearch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+<style>
+  /* ── Variables ── */
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --card:     #1c2128;
+    --border:   #30363d;
+    --accent:   #f0a500;
+    --accent2:  #e05a00;
+    --green:    #3fb950;
+    --red:      #f85149;
+    --text:     #e6edf3;
+    --muted:    #8b949e;
+    --radius:   12px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid BG */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(240,165,0,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(240,165,0,.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Layout ── */
+  .app { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 20px; }
+
+  /* ── Header ── */
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(2.5rem, 8vw, 4rem);
+    letter-spacing: .1em;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+  }
+  .logo-sub { font-size: .85rem; color: var(--muted); letter-spacing: .2em; text-transform: uppercase; margin-top: 2px; }
+
+  /* ── Screens ── */
+  .screen { display: none; }
+  .screen.active { display: block; animation: fadeIn .3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.4rem;
+    letter-spacing: .08em;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+
+  /* ── Inputs ── */
+  input[type=text] {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 1rem;
+    color: var(--text);
+    font-family: inherit;
+    outline: none;
+    transition: border-color .2s;
+    margin-bottom: 12px;
+  }
+  input[type=text]:focus { border-color: var(--accent); }
+  input[type=text]::placeholder { color: var(--muted); }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 24px;
+    border-radius: 8px;
+    border: none;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.1rem;
+    letter-spacing: .08em;
+    cursor: pointer;
+    transition: all .2s;
+    text-transform: uppercase;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #000;
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(240,165,0,.3); }
+  .btn-secondary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-green { background: var(--green); color: #000; }
+  .btn-green:hover { filter: brightness(1.1); }
+  .btn-sm { padding: 8px 16px; font-size: .95rem; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; transform: none !important; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+
+  /* ── Room Code ── */
+  .room-code {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2.5rem;
+    letter-spacing: .3em;
+    color: var(--accent);
+    background: var(--surface);
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 12px 24px;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .room-code-label { font-size: .75rem; color: var(--muted); text-align: center; letter-spacing: .15em; text-transform: uppercase; }
+
+  /* ── Player List ── */
+  .player-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .player-chip {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 12px;
+    font-size: .9rem;
+  }
+  .player-chip.me { border-color: var(--accent); color: var(--accent); }
+  .player-chip .crown { font-size: .85rem; }
+  .player-chip .score { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; color: var(--accent); }
+
+  /* ── Timer ── */
+  .timer-bar-wrap { background: var(--surface); border-radius: 6px; height: 8px; overflow: hidden; margin-bottom: 8px; }
+  .timer-bar { height: 100%; border-radius: 6px; transition: width 1s linear, background-color .5s; background: var(--green); }
+  .timer-text {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2rem;
+    letter-spacing: .1em;
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .timer-text.urgent { color: var(--red); animation: pulse .6s infinite; }
+  @keyframes pulse { 50% { opacity: .5; } }
+
+  /* ── Item Grid ── */
+  .item-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+  .item-card {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .item-card:hover:not(.found) { border-color: var(--accent); transform: translateY(-2px); }
+  .item-card.found {
+    border-color: var(--green);
+    background: rgba(63,185,80,.08);
+    cursor: default;
+  }
+  .item-card.found-by-other {
+    border-color: #58a6ff;
+    background: rgba(88,166,255,.06);
+  }
+  .item-card .emoji { font-size: 2.2rem; margin-bottom: 8px; }
+  .item-card .name { font-size: .85rem; font-weight: 500; line-height: 1.3; }
+  .item-card .category { font-size: .7rem; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .1em; }
+  .item-card .found-badge {
+    position: absolute; top: 8px; right: 8px;
+    font-size: .75rem;
+    background: var(--green);
+    color: #000;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-weight: 600;
+  }
+  .item-card .found-badge.other { background: #58a6ff; }
+  .item-card .check { font-size: 1.5rem; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); opacity: 0; }
+  .item-card.found .check { opacity: .15; font-size: 4rem; }
+
+  /* ── Photo Modal ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.8);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    justify-content: center; align-items: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    max-width: 480px;
+    width: calc(100% - 32px);
+    animation: fadeIn .2s ease;
+  }
+  .modal-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; color: var(--accent); margin-bottom: 16px; }
+  .photo-preview {
+    width: 100%; border-radius: 8px; max-height: 300px; object-fit: cover;
+    border: 2px solid var(--border); margin: 12px 0; display: none;
+  }
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s;
+    margin-bottom: 12px;
+  }
+  .upload-zone:hover { border-color: var(--accent); }
+  .upload-zone .icon { font-size: 2rem; margin-bottom: 8px; }
+  .upload-zone p { color: var(--muted); font-size: .9rem; }
+  #fileInput { display: none; }
+
+  /* ── Scoreboard ── */
+  .scoreboard-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--surface);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+  }
+  .scoreboard-row.winner { border-color: var(--accent); background: rgba(240,165,0,.06); }
+  .scoreboard-rank { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; color: var(--muted); width: 36px; }
+  .scoreboard-rank.gold { color: var(--accent); }
+  .scoreboard-name { flex: 1; font-weight: 500; }
+  .scoreboard-score { font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; color: var(--accent); }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 20px;
+    font-size: .9rem; z-index: 200;
+    opacity: 0; transition: opacity .3s;
+    pointer-events: none; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+  #toast.error { border-color: var(--red); color: var(--red); }
+  #toast.success { border-color: var(--green); color: var(--green); }
+
+  /* ── Misc ── */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  .muted { color: var(--muted); font-size: .85rem; }
+  .flex-between { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .tag { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: .75rem; font-weight: 600; text-transform: uppercase; }
+  .tag-running { background: rgba(63,185,80,.15); color: var(--green); }
+  .tag-lobby { background: rgba(240,165,0,.15); color: var(--accent); }
+  .tag-finished { background: rgba(248,81,73,.15); color: var(--red); }
+
+  .items-found-text { font-size: .85rem; color: var(--muted); margin-bottom: 12px; }
+  .photo-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ══ SCREEN: HOME ══ -->
+  <div id="screen-home" class="screen active">
+    <div style="text-align:center; padding: 40px 0 32px;">
+      <div class="logo">WorldSearch</div>
+      <div class="logo-sub">📸 Foto · Suche · Abenteuer</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🌍 Neues Spiel erstellen</div>
+      <input type="text" id="hostName" placeholder="Dein Name" maxlength="20">
+      <button class="btn btn-primary" onclick="createRoom()">🚀 Raum erstellen</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🔑 Raum beitreten</div>
+      <input type="text" id="joinName" placeholder="Dein Name" maxlength="20">
+      <input type="text" id="joinCode" placeholder="Raum-Code (z.B. AB12CD)" maxlength="6"
+             style="text-transform:uppercase; letter-spacing:.2em;">
+      <button class="btn btn-secondary" onclick="joinRoom()">➡️ Beitreten</button>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: LOBBY ══ -->
+  <div id="screen-lobby" class="screen">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+      <div>
+        <div class="logo" style="font-size:2rem;">WorldSearch</div>
+        <div class="logo-sub">Lobby</div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="leaveGame()">✕ Verlassen</button>
+    </div>
+
+    <div class="card">
+      <div class="room-code" id="lobbyCode">——</div>
+      <div class="room-code-label">Raum-Code — teile ihn mit deinen Freunden</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">👥 Spieler</div>
+      <div class="player-list" id="lobbyPlayers"></div>
+    </div>
+
+    <div id="hostControls" style="display:none;">
+      <div class="card">
+        <div class="card-title">⚙️ Einstellungen</div>
+        <label style="font-size:.85rem; color:var(--muted);">Rundenzeit (Minuten)</label>
+        <input type="text" id="roundDuration" value="10" style="margin-top:6px; max-width:100px;">
+      </div>
+      <button class="btn btn-primary" onclick="startGame()" style="width:100%;">
+        🎯 Spiel starten
+      </button>
+    </div>
+    <div id="guestWaiting" class="muted" style="text-align:center; padding:12px 0; display:none;">
+      ⏳ Warte auf den Host…
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: GAME ══ -->
+  <div id="screen-game" class="screen">
+    <div class="flex-between">
+      <div>
+        <div class="logo" style="font-size:1.8rem;">WorldSearch</div>
+      </div>
+      <span class="tag tag-running">🔴 Läuft</span>
+    </div>
+
+    <!-- Timer -->
+    <div class="card">
+      <div class="timer-text" id="timerDisplay">10:00</div>
+      <div class="timer-bar-wrap">
+        <div class="timer-bar" id="timerBar" style="width:100%"></div>
+      </div>
+      <div class="player-list" id="gamePlayers"></div>
+    </div>
+
+    <!-- Items -->
+    <div class="card">
+      <div class="flex-between" style="margin-bottom:0">
+        <div class="card-title" style="margin-bottom:0;">🔍 Gesuchte Gegenstände</div>
+        <div class="items-found-text" id="itemsFoundText">0 / 8</div>
+      </div>
+      <div style="margin-bottom:12px;"></div>
+      <div class="item-grid" id="gameItems"></div>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: FINISHED ══ -->
+  <div id="screen-finished" class="screen">
+    <div style="text-align:center; padding: 32px 0 20px;">
+      <div style="font-size: 4rem; margin-bottom:8px;" id="finishEmoji">🏆</div>
+      <div class="logo" style="font-size:2.5rem;">Runde Vorbei!</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🏅 Ergebnis</div>
+      <div id="scoreboard"></div>
+    </div>
+
+    <div id="finishHostControls" style="display:none;">
+      <button class="btn btn-primary" onclick="restartGame()" style="width:100%;">
+        🔄 Neue Runde
+      </button>
+    </div>
+    <div id="finishGuestWaiting" class="muted" style="text-align:center; padding:12px; display:none;">
+      Warte auf Host für neue Runde…
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- ══ PHOTO MODAL ══ -->
+<div class="modal-overlay" id="photoModal">
+  <div class="modal">
+    <div class="modal-title" id="modalItemName">📷 Foto hochladen</div>
+    <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+      <div class="icon">📸</div>
+      <p>Klicke hier oder ziehe ein Foto rein</p>
+      <p style="font-size:.75rem; margin-top:4px; color: var(--muted)">JPG / PNG · max. 5 MB</p>
+    </div>
+    <img class="photo-preview" id="photoPreview" alt="Vorschau">
+    <input type="file" id="fileInput" accept="image/*" capture="environment">
+    <div class="btn-row">
+      <button class="btn btn-primary" id="submitPhotoBtn" onclick="submitPhoto()" disabled>✓ Absenden</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+let connection = null;
+let myPlayerId = null;
+let myRoomCode = null;
+let isHost = false;
+let gameState = null;
+let totalSeconds = 600;
+let timerInterval = null;
+let selectedItemId = null;
+let selectedPhotoBase64 = null;
+
+// ── SignalR Connection ─────────────────────────────────────────────────
+async function initConnection() {
+  connection = new signalR.HubConnectionBuilder()
+    .withUrl('/gamehub')
+    .withAutomaticReconnect()
+    .build();
+
+  connection.on('RoomCreated', (code) => {
+    myRoomCode = code;
+    showToast('Raum erstellt: ' + code, 'success');
+  });
+
+  connection.on('JoinedRoom', (code, playerId) => {
+    myRoomCode = code;
+    myPlayerId = playerId;
+  });
+
+  connection.on('StateUpdate', (state) => {
+    gameState = state;
+    renderState(state);
+  });
+
+  connection.on('TimerUpdate', (seconds) => {
+    updateTimerDisplay(seconds, totalSeconds);
+  });
+
+  connection.on('GameOver', (winnerId, winnerName, reason) => {
+    clearInterval(timerInterval);
+  });
+
+  connection.on('Error', (msg) => showToast(msg, 'error'));
+
+  connection.onreconnected(() => {
+    showToast('Verbindung wiederhergestellt', 'success');
+  });
+
+  await connection.start();
+}
+
+initConnection().catch(err => {
+  showToast('Verbindungsfehler – lade Seite neu', 'error');
+  console.error(err);
+});
+
+// ── Room Actions ───────────────────────────────────────────────────────
+async function createRoom() {
+  const name = document.getElementById('hostName').value.trim();
+  if (!name) { showToast('Bitte Namen eingeben', 'error'); return; }
+  await connection.invoke('CreateRoom', name);
+}
+
+async function joinRoom() {
+  const name = document.getElementById('joinName').value.trim();
+  const code = document.getElementById('joinCode').value.trim().toUpperCase();
+  if (!name) { showToast('Bitte Namen eingeben', 'error'); return; }
+  if (!code) { showToast('Bitte Raum-Code eingeben', 'error'); return; }
+  await connection.invoke('JoinRoom', code, name);
+}
+
+async function startGame() {
+  await connection.invoke('StartGame', myRoomCode);
+}
+
+async function restartGame() {
+  await connection.invoke('RestartGame', myRoomCode);
+}
+
+function leaveGame() {
+  connection.stop().then(() => location.reload());
+}
+
+// ── Render State ───────────────────────────────────────────────────────
+function renderState(state) {
+  const screen = state.state;
+
+  if (screen === 'Lobby') {
+    showScreen('lobby');
+    document.getElementById('lobbyCode').textContent = state.roomCode;
+    const me = state.players.find(p => {
+      if (myPlayerId) return p.id === myPlayerId;
+      // First time: detect host
+      return p.isHost;
+    });
+    if (me) {
+      myPlayerId = me.id;
+      isHost = me.isHost;
+    }
+
+    renderPlayers(document.getElementById('lobbyPlayers'), state.players, true);
+    document.getElementById('hostControls').style.display = isHost ? 'block' : 'none';
+    document.getElementById('guestWaiting').style.display = isHost ? 'none' : 'block';
+
+  } else if (screen === 'Running') {
+    showScreen('game');
+    totalSeconds = state.secondsRemaining > 0 ? state.secondsRemaining : 600;
+    startTimerSync();
+    renderPlayers(document.getElementById('gamePlayers'), state.players, false);
+    renderItems(state.activeItems, state.foundItems, state.players);
+    updateTimerDisplay(state.secondsRemaining, totalSeconds);
+
+  } else if (screen === 'Finished') {
+    showScreen('finished');
+    clearInterval(timerInterval);
+    renderScoreboard(state);
+    document.getElementById('finishHostControls').style.display = isHost ? 'block' : 'none';
+    document.getElementById('finishGuestWaiting').style.display = isHost ? 'none' : 'block';
+  }
+}
+
+function renderPlayers(container, players, showHost) {
+  container.innerHTML = players.map(p => {
+    const me = p.id === myPlayerId;
+    const crown = p.isHost ? '<span class="crown">👑</span>' : '';
+    const score = gameState?.state === 'Running'
+      ? `<span class="score">${p.score}</span>`
+      : '';
+    return `<div class="player-chip ${me ? 'me' : ''}">
+      ${crown}${escapeHtml(p.name)}${score}
+    </div>`;
+  }).join('');
+}
+
+function renderItems(items, foundItems, players) {
+  const myFoundIds = new Set(
+    players.find(p => p.id === myPlayerId)?.foundItemIds ?? []
+  );
+  const otherFoundIds = new Set(
+    foundItems.filter(f => f.playerId !== myPlayerId).map(f => f.itemId)
+  );
+  const myFound = foundItems.filter(f => f.playerId === myPlayerId);
+
+  const total = items.length;
+  const myCount = myFoundIds.size;
+  document.getElementById('itemsFoundText').textContent = `${myCount} / ${total} gefunden`;
+
+  document.getElementById('gameItems').innerHTML = items.map(item => {
+    const foundByMe = myFoundIds.has(item.id);
+    const foundByOther = otherFoundIds.has(item.id) && !foundByMe;
+    const finder = foundItems.find(f => f.itemId === item.id);
+    const myPhoto = myFound.find(f => f.itemId === item.id);
+
+    let badge = '';
+    if (foundByMe) badge = `<div class="found-badge">✓ Du</div>`;
+    else if (foundByOther) badge = `<div class="found-badge other">${escapeHtml(finder?.playerName ?? '')}</div>`;
+
+    const photoPreview = myPhoto ? `<img src="${myPhoto.photoBase64}" class="photo-thumb" style="margin-top:8px;">` : '';
+
+    return `<div class="item-card ${foundByMe ? 'found' : ''} ${foundByOther ? 'found-by-other' : ''}"
+              onclick="${foundByMe ? '' : `openModal('${item.id}', '${escapeHtml(item.emoji)} ${escapeHtml(item.name)}')`}">
+      ${badge}
+      <div class="check">✓</div>
+      <div class="emoji">${item.emoji}</div>
+      <div class="name">${escapeHtml(item.name)}</div>
+      <div class="category">${escapeHtml(item.category)}</div>
+      ${photoPreview}
+    </div>`;
+  }).join('');
+}
+
+function renderScoreboard(state) {
+  const sorted = [...state.players].sort((a, b) => b.score - a.score);
+  const medals = ['🥇', '🥈', '🥉'];
+  document.getElementById('finishEmoji').textContent =
+    state.winnerId ? '🏆' : '⏱️';
+
+  document.getElementById('scoreboard').innerHTML = sorted.map((p, i) => {
+    const isWinner = p.id === state.winnerId;
+    const me = p.id === myPlayerId;
+    return `<div class="scoreboard-row ${isWinner ? 'winner' : ''}">
+      <div class="scoreboard-rank ${i === 0 ? 'gold' : ''}">${medals[i] ?? (i+1)}</div>
+      <div class="scoreboard-name">${escapeHtml(p.name)}${me ? ' <span style="color:var(--muted);font-size:.8rem">(Du)</span>' : ''}</div>
+      <div class="scoreboard-score">${p.score} / ${state.activeItems.length}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Timer ──────────────────────────────────────────────────────────────
+function startTimerSync() {
+  clearInterval(timerInterval);
+  let secs = gameState?.secondsRemaining ?? 0;
+  totalSeconds = secs > 0 ? secs : 600;
+
+  timerInterval = setInterval(async () => {
+    secs--;
+    if (secs < 0) secs = 0;
+    updateTimerDisplay(secs, totalSeconds);
+    if (secs === 0) clearInterval(timerInterval);
+    // Resync every 30s
+    if (secs % 30 === 0 && connection?.state === 'Connected') {
+      await connection.invoke('GetTimer', myRoomCode).catch(() => {});
+    }
+  }, 1000);
+}
+
+function updateTimerDisplay(secs, max) {
+  const m = String(Math.floor(secs / 60)).padStart(2, '0');
+  const s = String(secs % 60).padStart(2, '0');
+  const el = document.getElementById('timerDisplay');
+  if (!el) return;
+  el.textContent = `${m}:${s}`;
+  el.className = 'timer-text' + (secs < 60 ? ' urgent' : '');
+
+  const pct = max > 0 ? (secs / max) * 100 : 0;
+  const bar = document.getElementById('timerBar');
+  if (bar) {
+    bar.style.width = pct + '%';
+    bar.style.backgroundColor = secs < 60 ? 'var(--red)' : secs < 120 ? 'var(--accent)' : 'var(--green)';
+  }
+}
+
+// ── Photo Modal ────────────────────────────────────────────────────────
+function openModal(itemId, itemName) {
+  if (gameState?.state !== 'Running') return;
+  selectedItemId = itemId;
+  selectedPhotoBase64 = null;
+  document.getElementById('modalItemName').textContent = '📷 ' + itemName;
+  document.getElementById('photoPreview').style.display = 'none';
+  document.getElementById('submitPhotoBtn').disabled = true;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('photoModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('photoModal').classList.remove('open');
+  selectedItemId = null;
+  selectedPhotoBase64 = null;
+}
+
+document.getElementById('fileInput').addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { showToast('Foto zu groß (max. 5 MB)', 'error'); return; }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    selectedPhotoBase64 = e.target.result;
+    const preview = document.getElementById('photoPreview');
+    preview.src = selectedPhotoBase64;
+    preview.style.display = 'block';
+    document.getElementById('submitPhotoBtn').disabled = false;
+  };
+  reader.readAsDataURL(file);
+});
+
+// Drag & Drop
+document.querySelector('.upload-zone').addEventListener('dragover', e => {
+  e.preventDefault();
+  e.currentTarget.style.borderColor = 'var(--accent)';
+});
+document.querySelector('.upload-zone').addEventListener('dragleave', e => {
+  e.currentTarget.style.borderColor = 'var(--border)';
+});
+document.querySelector('.upload-zone').addEventListener('drop', e => {
+  e.preventDefault();
+  e.currentTarget.style.borderColor = 'var(--border)';
+  const file = e.dataTransfer.files[0];
+  if (file) {
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    document.getElementById('fileInput').files = dt.files;
+    document.getElementById('fileInput').dispatchEvent(new Event('change'));
+  }
+});
+
+async function submitPhoto() {
+  if (!selectedItemId || !selectedPhotoBase64) return;
+  document.getElementById('submitPhotoBtn').disabled = true;
+  try {
+    await connection.invoke('SubmitPhoto', myRoomCode, selectedItemId, selectedPhotoBase64);
+    closeModal();
+    showToast('Foto eingereicht! ✓', 'success');
+  } catch (err) {
+    showToast('Fehler beim Hochladen', 'error');
+    document.getElementById('submitPhotoBtn').disabled = false;
+  }
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+}
+
+let toastTimer;
+function showToast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = '', 3500);
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Close modal on overlay click
+document.getElementById('photoModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+</script>
+</body>
+</html>
