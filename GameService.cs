@@ -33,13 +33,13 @@ public class GameService
     {
         roomCode = roomCode.ToUpper();
         if (!_sessions.TryGetValue(roomCode, out var session))
-            return (null, null, "Raum nicht gefunden.");
+            return (null, null, "Room not found.");
 
         if (session.State != GameState.Lobby)
-            return (null, null, "Das Spiel läuft bereits.");
+            return (null, null, "Game is already running.");
 
         if (session.Players.Count >= 8)
-            return (null, null, "Raum ist voll (max. 8 Spieler).");
+            return (null, null, "Room is full (max. 8 players).");
 
         var player = new Player
         {
@@ -68,13 +68,13 @@ public class GameService
     {
         var player = GetPlayer(session, connectionId);
         if (player is null || !player.IsHost)
-            return (false, "Nur der Host kann das Spiel starten.");
+            return (false, "Only the host can start the game.");
 
         if (session.State != GameState.Lobby)
-            return (false, "Spiel läuft bereits.");
+            return (false, "Game is already running.");
 
         if (session.Players.Count < 1)
-            return (false, "Mindestens 1 Spieler benötigt.");
+            return (false, "At least 1 player required.");
 
         // Pick random items
         var shuffled = ItemCatalog.AllItems
@@ -99,28 +99,28 @@ public class GameService
         GameSession session, string connectionId, string itemId, string photoBase64)
     {
         if (session.State != GameState.Running)
-            return (false, "Kein aktives Spiel.", null);
+            return (false, "No active game.", null);
 
         if (session.IsExpired)
         {
             FinishGame(session, expired: true);
-            return (false, "Zeit abgelaufen!", null);
+            return (false, "Time's up!", null);
         }
 
         var player = GetPlayer(session, connectionId);
         if (player is null)
-            return (false, "Spieler nicht gefunden.", null);
+            return (false, "Player not found.", null);
 
         var item = session.ActiveItems.FirstOrDefault(i => i.Id == itemId);
         if (item is null)
-            return (false, "Gegenstand nicht gefunden.", null);
+            return (false, "Item not found.", null);
 
         if (player.FoundItemIds.Contains(itemId))
-            return (false, "Bereits gefunden.", null);
+            return (false, "Already found.", null);
 
         // Validate photo size (max ~5MB base64)
         if (photoBase64.Length > 7_000_000)
-            return (false, "Foto zu groß (max. 5 MB).", null);
+            return (false, "Photo too large (max. 5 MB).", null);
 
         player.FoundItemIds.Add(itemId);
 

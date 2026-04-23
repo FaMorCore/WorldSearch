@@ -23,7 +23,7 @@ public class GameHub : Hub
         hostName = hostName.Trim();
         if (string.IsNullOrWhiteSpace(hostName))
         {
-            await Clients.Caller.SendAsync("Error", "Name darf nicht leer sein.");
+            await Clients.Caller.SendAsync("Error", "Name cannot be empty.");
             return;
         }
 
@@ -40,7 +40,7 @@ public class GameHub : Hub
         playerName = playerName.Trim();
         if (string.IsNullOrWhiteSpace(playerName))
         {
-            await Clients.Caller.SendAsync("Error", "Name darf nicht leer sein.");
+            await Clients.Caller.SendAsync("Error", "Name cannot be empty.");
             return;
         }
 
@@ -62,7 +62,7 @@ public class GameHub : Hub
     public async Task StartGame(string roomCode)
     {
         var session = _gameService.GetSession(roomCode);
-        if (session is null) { await Clients.Caller.SendAsync("Error", "Raum nicht gefunden."); return; }
+        if (session is null) { await Clients.Caller.SendAsync("Error", "Room not found."); return; }
 
         var (success, error) = _gameService.StartGame(session, Context.ConnectionId);
         if (!success) { await Clients.Caller.SendAsync("Error", error); return; }
@@ -97,7 +97,7 @@ public class GameHub : Hub
     public async Task SubmitPhoto(string roomCode, string itemId, string photoBase64)
     {
         var session = _gameService.GetSession(roomCode);
-        if (session is null) { await Clients.Caller.SendAsync("Error", "Raum nicht gefunden."); return; }
+        if (session is null) { await Clients.Caller.SendAsync("Error", "Room not found."); return; }
 
         var (success, error, foundItem) = _gameService.SubmitPhoto(session, Context.ConnectionId, itemId, photoBase64);
         if (!success)
@@ -115,7 +115,7 @@ public class GameHub : Hub
             var winner = session.Players.FirstOrDefault(p => p.Id == session.WinnerId);
             await Clients.Group(roomCode).SendAsync("GameOver",
                 session.WinnerId,
-                winner?.Name ?? "Niemand",
+                winner?.Name ?? "Nobody",
                 "win");
         }
     }
@@ -131,7 +131,7 @@ public class GameHub : Hub
         {
             _gameService.FinishGame(session, expired: true);
             await BroadcastState(session);
-            await Clients.Group(roomCode).SendAsync("GameOver", null, "Niemand", "timeout");
+            await Clients.Group(roomCode).SendAsync("GameOver", null, "Nobody", "timeout");
         }
         else
         {
